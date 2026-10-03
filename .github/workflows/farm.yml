@@ -40,15 +40,26 @@ jobs:
         env:
           PROXIES_B64: ${{ secrets.PROXIES_B64 }}
           PEAK_KEYS_B64: ${{ secrets.PEAK_KEYS_B64 }}
+          POOL_URL: ${{ secrets.POOL_URL }}
         run: |
           : > /tmp/farm.log
           mkdir -p pkg
-          printf '%s' "$PROXIES_B64"   | base64 -d > pkg/proxies.txt
           printf '%s' "$PEAK_KEYS_B64" | base64 -d > pkg/peak_keys.txt
-          echo "panjang rahasia: PROXIES_B64=${#PROXIES_B64} PEAK_KEYS_B64=${#PEAK_KEYS_B64}"
-          echo "proxies.txt: $(grep -c . pkg/proxies.txt) baris"
-          echo "peak_keys.txt: $(grep -c . pkg/peak_keys.txt) baris"
-          test "$(grep -c . pkg/proxies.txt)"   -ge 1 || { echo "::error::PROXIES_B64 kosong/gagal dibaca"; exit 1; }
+          # Pool dibagi rata: shard ke-i ambil baris i, i+N, i+2N, ... (tanpa tumpang tindih)
+          TOTAL=${{ strategy.job-total }}
+          IDX=${{ matrix.shard }}
+          if [ -n "$POOL_URL" ]; then
+            curl -fsS --retry 3 --max-time 90 "$POOL_URL" -o proxies_all.txt \
+              || echo "::warning::unduh pool gagal, lanjut dengan pool kecil dari secret"
+          fi
+          if [ ! -s proxies_all.txt ]; then
+            printf '%s' "$PROXIES_B64" | base64 -d > proxies_all.txt
+          fi
+          awk -v n="$TOTAL" -v i="$IDX" 'NR % n == (i - 1)' proxies_all.txt > pkg/proxies.txt
+          echo "proxy pool  : $(grep -c . proxies_all.txt) baris total"
+          echo "shard $IDX/$TOTAL : $(grep -c . pkg/proxies.txt) proxy (irisannya sendiri)"
+          echo "peak_keys   : $(grep -c . pkg/peak_keys.txt) baris"
+          test "$(grep -c . pkg/proxies.txt)"   -ge 1 || { echo "::error::irisan pool kosong"; exit 1; }
           test "$(grep -c . pkg/peak_keys.txt)" -ge 1 || { echo "::error::PEAK_KEYS_B64 kosong/gagal dibaca"; exit 1; }
 
       - name: Jalankan shard
