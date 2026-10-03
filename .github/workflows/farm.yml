@@ -42,13 +42,14 @@ jobs:
           PEAK_KEYS_B64: ${{ secrets.PEAK_KEYS_B64 }}
         run: |
           : > /tmp/farm.log
-          printf '%s' "$PROXIES_B64" | base64 -d > proxies.txt
-          printf '%s' "$PEAK_KEYS_B64" | base64 -d > peak_keys.txt
+          mkdir -p pkg
+          printf '%s' "$PROXIES_B64"   | base64 -d > pkg/proxies.txt
+          printf '%s' "$PEAK_KEYS_B64" | base64 -d > pkg/peak_keys.txt
           echo "panjang rahasia: PROXIES_B64=${#PROXIES_B64} PEAK_KEYS_B64=${#PEAK_KEYS_B64}"
-          echo "proxies.txt: $(grep -c . proxies.txt) baris"
-          echo "peak_keys.txt: $(grep -c . peak_keys.txt) baris"
-          test "$(grep -c . proxies.txt)" -ge 1 || { echo "::error::PROXIES_B64 kosong/gagal dibaca"; exit 1; }
-          test "$(grep -c . peak_keys.txt)" -ge 1 || { echo "::error::PEAK_KEYS_B64 kosong/gagal dibaca"; exit 1; }
+          echo "proxies.txt: $(grep -c . pkg/proxies.txt) baris"
+          echo "peak_keys.txt: $(grep -c . pkg/peak_keys.txt) baris"
+          test "$(grep -c . pkg/proxies.txt)"   -ge 1 || { echo "::error::PROXIES_B64 kosong/gagal dibaca"; exit 1; }
+          test "$(grep -c . pkg/peak_keys.txt)" -ge 1 || { echo "::error::PEAK_KEYS_B64 kosong/gagal dibaca"; exit 1; }
 
       - name: Jalankan shard
         continue-on-error: true
@@ -62,7 +63,7 @@ jobs:
             --workers ${{ github.event.inputs.workers || 1 }} \
             --attempts ${{ github.event.inputs.attempts || 3 }} \
             --out "$OUT" \
-            --pool ../proxies.txt > /tmp/farm.log 2>&1 || true
+            --pool proxies.txt > /tmp/farm.log 2>&1 || true
           echo "--- hasil shard ${{ matrix.shard }} ---"
           grep -aE "PARALEL start|✔|DONE|solver:|inbox:" /tmp/farm.log | tail -20
 
