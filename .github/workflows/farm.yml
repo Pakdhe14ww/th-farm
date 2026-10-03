@@ -73,6 +73,8 @@ jobs:
           N=$(grep -c '^thk_' /tmp/keys_${{ matrix.shard }}.txt 2>/dev/null || echo 0)
           echo "shard ${{ matrix.shard }}: $N key" >> $GITHUB_STEP_SUMMARY
           grep -aE "^\[.*DONE|solver:" /tmp/farm.log 2>/dev/null | head -3 >> $GITHUB_STEP_SUMMARY || true
+          echo "--- RAW farm.log ---"
+          tail -30 /tmp/farm.log
 
       - name: Unggah key
         if: always()
