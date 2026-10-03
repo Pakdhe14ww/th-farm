@@ -8,8 +8,9 @@
 set -euo pipefail
 
 # ── setelan (bisa lewat env) ──────────────────────────────────────
-REPO="${REPO:-}"                      # owner/repo  (ambil paket farm dari sini)
-GH_TOKEN="${GH_TOKEN:-}"
+REPO="${REPO:-}"                      # owner/repo  (di-clone lewat git)
+GIT_URL="${GIT_URL:-}"                # atau URL git langsung (mirror/gitlab/ssh)
+GH_TOKEN="${GH_TOKEN:-}"              # token untuk repo private
 POOL_URL="${POOL_URL:-}"              # URL teks polos, 1 baris = 1 proxy
 POOL_FILE="${POOL_FILE:-}"            # atau: sudah ada di disk
 PEAK_KEYS_B64="${PEAK_KEYS_B64:-}"    # key solver peak.fo (base64, 1 key/baris)
@@ -31,14 +32,15 @@ log "pasang dependensi sistem"
 if command -v apt-get >/dev/null; then
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq
-  apt-get install -y -qq python3 python3-venv python3-pip curl ca-certificates >/dev/null
+  apt-get install -y -qq python3 python3-venv python3-pip git curl ca-certificates >/dev/null
 elif command -v dnf >/dev/null; then
-  dnf install -y -q python3 python3-pip curl ca-certificates >/dev/null
+  dnf install -y -q python3 python3-pip git curl ca-certificates >/dev/null
 elif command -v apk >/dev/null; then
-  apk add --quiet python3 py3-pip curl ca-certificates
+  apk add --quiet python3 py3-pip git curl ca-certificates
 else
   die "distro tidak dikenal (butuh apt/dnf/apk)"
 fi
+command -v git >/dev/null || die "butuh git"
 command -v systemctl >/dev/null || die "butuh systemd"
 
 # ── 2. venv + paket python ───────────────────────────────────────
@@ -50,16 +52,22 @@ log "siapkan venv di $DIR/venv"
 
 # ── 3. ambil paket farm ──────────────────────────────────────────
 mkdir -p "$DIR/pkg"
-if [ -n "$REPO" ]; then
-  log "unduh paket dari $REPO"
-  [ -n "$GH_TOKEN" ] || die "GH_TOKEN wajib kalau REPO diisi"
-  for f in th.py th_par.py th_peak_par.py; do
-    curl -fsSL --retry 3 \
-      -H "Authorization: token $GH_TOKEN" \
-      -H "Accept: application/vnd.github.raw" \
-      "https://api.github.com/repos/$REPO/contents/pkg/$f" \
-      -o "$DIR/pkg/$f" || die "gagal unduh pkg/$f"
-  done
+if [ -z "$GIT_URL" ] && [ -n "$REPO" ]; then
+  if [ -n "$GH_TOKEN" ]; then GIT_URL="https://x-access-token:$GH_TOKEN@github.com/$REPO.git"
+  else GIT_URL="https://github.com/$REPO.git"; fi
+fi
+if [ -n "$GIT_URL" ]; then
+  # git clone: paling sederhana, sekali ambil semua (pkg + pool).
+  log "git clone ${GIT_URL%%@*}…"
+  SRC="$DIR/src"
+  rm -rf "$SRC"
+  git clone --depth 1 --quiet "$GIT_URL" "$SRC" \
+    || die "git clone gagal (cek REPO/GH_TOKEN/GIT_URL)"
+  cp -f "$SRC"/pkg/*.py "$DIR/pkg/" 2>/dev/null || true
+  [ -s "$SRC/proxies_all.txt" ] && cp -f "$SRC/proxies_all.txt" "$DIR/pkg/_pool.txt" || true
+  # jangan simpan token di remote
+  git -C "$SRC" remote set-url origin "https://github.com/$REPO.git" 2>/dev/null || true
+  log "  dapat: $(ls "$SRC/pkg" 2>/dev/null | tr '\n' ' ')"
 fi
 for f in th.py th_par.py th_peak_par.py; do
   [ -s "$DIR/pkg/$f" ] || die "pkg/$f tidak ada — isi REPO= atau taruh manual di $DIR/pkg/"
@@ -76,7 +84,10 @@ fi
 [ -s "$DIR/pkg/peak_keys.txt" ] || die "key solver kosong (isi PEAK_KEYS_B64 / PEAK_KEYS_FILE)"
 log "  peak_keys.txt : $(grep -c . "$DIR/pkg/peak_keys.txt") key"
 
-if [ -n "$POOL_URL" ]; then
+if [ -s "$DIR/pkg/_pool.txt" ]; then
+  log "pakai pool dari clone git"
+  cp "$DIR/pkg/_pool.txt" "$DIR/pkg/proxies.txt"
+elif [ -n "$POOL_URL" ]; then
   # sumber bebas: teks polos, 1 baris = 1 proxy
   log "unduh pool dari POOL_URL"
   curl -fsSL --retry 3 --max-time 300 "$POOL_URL" -o "$DIR/pkg/proxies.txt" \
