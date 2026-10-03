@@ -52,6 +52,13 @@ log "siapkan venv di $DIR/venv"
 
 # ── 3. ambil paket farm ──────────────────────────────────────────
 mkdir -p "$DIR/pkg"
+# dipanggil dari bootstrap: paket sudah ada di SRC_LOCAL, jangan clone lagi
+if [ -n "${SRC_LOCAL:-}" ] && [ -s "$SRC_LOCAL/pkg/th_peak_par.py" ]; then
+  log "pakai paket dari bootstrap ($SRC_LOCAL)"
+  cp -f "$SRC_LOCAL"/pkg/*.py "$DIR/pkg/" 2>/dev/null || true
+  [ -s "$SRC_LOCAL/proxies_all.txt" ] && cp -f "$SRC_LOCAL/proxies_all.txt" "$DIR/pkg/_pool.txt" || true
+  [ -s "$SRC_LOCAL/peak_keys.txt" ]   && cp -f "$SRC_LOCAL/peak_keys.txt"   "$DIR/pkg/_peaks.txt" || true
+fi
 if [ -z "$GIT_URL" ] && [ -n "$REPO" ]; then
   if [ -n "$GH_TOKEN" ]; then GIT_URL="https://x-access-token:$GH_TOKEN@github.com/$REPO.git"
   else GIT_URL="https://github.com/$REPO.git"; fi
@@ -80,6 +87,14 @@ if [ -n "$PEAK_KEYS_B64" ]; then
   printf '%s' "$PEAK_KEYS_B64" | base64 -d > "$DIR/pkg/peak_keys.txt"
 elif [ -n "$PEAK_KEYS_FILE" ]; then
   cp "$PEAK_KEYS_FILE" "$DIR/pkg/peak_keys.txt"
+elif [ -s "$DIR/pkg/_peaks.txt" ]; then
+  cp "$DIR/pkg/_peaks.txt" "$DIR/pkg/peak_keys.txt"      # dari repo, via bootstrap
+elif [ -n "$REPO" ] && [ -n "$GH_TOKEN" ]; then
+  log "ambil key solver dari $REPO (peak_keys.txt)"
+  curl -fsSL --retry 3 -H "Authorization: token $GH_TOKEN" \
+    -H "Accept: application/vnd.github.raw" \
+    "https://api.github.com/repos/$REPO/contents/peak_keys.txt" \
+    -o "$DIR/pkg/peak_keys.txt" || true
 fi
 [ -s "$DIR/pkg/peak_keys.txt" ] || die "key solver kosong (isi PEAK_KEYS_B64 / PEAK_KEYS_FILE)"
 log "  peak_keys.txt : $(grep -c . "$DIR/pkg/peak_keys.txt") key"
