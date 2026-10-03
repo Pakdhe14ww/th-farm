@@ -37,10 +37,14 @@ jobs:
       # File dibuat kosong DULU: kalau engine gagal start, langkah ringkasan
       # tetap jalan dan melaporkan sebabnya (bukan "No such file").
       - name: Siapkan konfigurasi dari secret
+        env:
+          PROXIES_B64: ${{ secrets.PROXIES_B64 }}
+          PEAK_KEYS_B64: ${{ secrets.PEAK_KEYS_B64 }}
         run: |
           : > /tmp/farm.log
           printf '%s' "$PROXIES_B64" | base64 -d > proxies.txt
           printf '%s' "$PEAK_KEYS_B64" | base64 -d > peak_keys.txt
+          echo "panjang rahasia: PROXIES_B64=${#PROXIES_B64} PEAK_KEYS_B64=${#PEAK_KEYS_B64}"
           echo "proxies.txt: $(grep -c . proxies.txt) baris"
           echo "peak_keys.txt: $(grep -c . peak_keys.txt) baris"
           test "$(grep -c . proxies.txt)" -ge 1 || { echo "::error::PROXIES_B64 kosong/gagal dibaca"; exit 1; }
@@ -50,9 +54,7 @@ jobs:
         continue-on-error: true
         env:
           TH_SKIP_PRECHECK: '1'
-          PROXIES_B64: ${{ secrets.PROXIES_B64 }}
-          PEAK_KEYS_B64: ${{ secrets.PEAK_KEYS_B64 }}
-        run:
+        run: |
           cd pkg
           OUT="/tmp/keys_${{ matrix.shard }}.txt"
           python -u th_peak_par.py \
