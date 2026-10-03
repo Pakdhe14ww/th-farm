@@ -23,6 +23,13 @@ SERVICE="${SERVICE:-thfarm}"
 PY_BIN="${PY_BIN:-python3}"
 
 log() { printf '\033[36m[%s]\033[0m %s\n' "$(date -u +%H:%M:%S)" "$*"; }
+
+# Kalau skrip ini dijalankan DARI DALAM hasil git clone, semua bahan sudah ada
+# di situ (pkg/, proxies_all.txt, peak_keys.txt) — tidak perlu unduh apa pun.
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -z "${SRC_LOCAL:-}" ] && [ -s "$SELF_DIR/../pkg/th_peak_par.py" ]; then
+  SRC_LOCAL="$(cd "$SELF_DIR/.." && pwd)"
+fi
 die() { printf '\033[31m[GAGAL]\033[0m %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "jalankan sebagai root (sudo)"
