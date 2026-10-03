@@ -1,0 +1,77 @@
+name: farm
+# Farm TokenHarbor di GitHub Actions.
+# 1 shard = 1 key. Proxy + key peak.fo datang dari SECRET repo (tidak pernah masuk kode).
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'jumlah key'
+        default: '1'
+      workers:
+        description: 'worker dalam shard ini'
+        default: '1'
+      attempts:
+        description: 'percobaan maksimum'
+        default: '3'
+  schedule:
+    - cron: '*/15 * * * *'
+
+jobs:
+  farm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Pasang dependensi
+        run: pip install --quiet requests
+
+      # File dibuat kosong DULU: kalau engine gagal start, langkah ringkasan
+      # tetap jalan dan melaporkan sebabnya (bukan "No such file").
+      - name: Siapkan konfigurasi dari secret
+        run: |
+          : > /tmp/farm.log
+          printf '%s' "$PROXIES_B64" | base64 -d > proxies.txt
+          printf '%s' "$PEAK_KEYS_B64" | base64 -d > peak_keys.txt
+          echo "proxies.txt: $(grep -c . proxies.txt) baris"
+          echo "peak_keys.txt: $(grep -c . peak_keys.txt) baris"
+
+      - name: Jalankan shard
+        continue-on-error: true
+        env:
+          TH_SKIP_PRECHECK: '1'
+        run: |
+          cd pkg
+          OUT="/tmp/keys_${{ matrix.shard }}.txt"
+          python -u th_peak_par.py \
+            --target ${{ github.event.inputs.target || 1 }} \
+            --workers ${{ github.event.inputs.workers || 1 }} \
+            --attempts ${{ github.event.inputs.attempts || 3 }} \
+            --out "$OUT" \
+            --pool ../proxies.txt > /tmp/farm.log 2>&1 || true
+          echo "--- hasil shard ${{ matrix.shard }} ---"
+          grep -aE "PARALEL start|✔|DONE|solver:|inbox:" /tmp/farm.log | tail -20
+
+      - name: Ringkasan
+        if: always()
+        continue-on-error: true
+        run: |
+          N=$(grep -c '^thk_' /tmp/keys_${{ matrix.shard }}.txt 2>/dev/null || echo 0)
+          echo "shard ${{ matrix.shard }}: $N key" >> $GITHUB_STEP_SUMMARY
+          grep -aE "^\[.*DONE|solver:" /tmp/farm.log 2>/dev/null | head -3 >> $GITHUB_STEP_SUMMARY || true
+
+      - name: Unggah key
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: keys-shard-${{ matrix.shard }}
+          path: /tmp/keys_${{ matrix.shard }}.txt
+          if-no-files-found: ignore
