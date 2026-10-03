@@ -43,12 +43,16 @@ jobs:
           printf '%s' "$PEAK_KEYS_B64" | base64 -d > peak_keys.txt
           echo "proxies.txt: $(grep -c . proxies.txt) baris"
           echo "peak_keys.txt: $(grep -c . peak_keys.txt) baris"
+          test "$(grep -c . proxies.txt)" -ge 1 || { echo "::error::PROXIES_B64 kosong/gagal dibaca"; exit 1; }
+          test "$(grep -c . peak_keys.txt)" -ge 1 || { echo "::error::PEAK_KEYS_B64 kosong/gagal dibaca"; exit 1; }
 
       - name: Jalankan shard
         continue-on-error: true
         env:
           TH_SKIP_PRECHECK: '1'
-        run: |
+          PROXIES_B64: ${{ secrets.PROXIES_B64 }}
+          PEAK_KEYS_B64: ${{ secrets.PEAK_KEYS_B64 }}
+        run:
           cd pkg
           OUT="/tmp/keys_${{ matrix.shard }}.txt"
           python -u th_peak_par.py \
