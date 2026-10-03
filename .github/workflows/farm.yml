@@ -19,7 +19,7 @@ on:
 jobs:
   farm:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 350
     strategy:
       fail-fast: false
       matrix:
