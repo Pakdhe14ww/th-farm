@@ -14,6 +14,7 @@ GH_TOKEN="${GH_TOKEN:-}"              # token untuk repo private
 POOL_URL="${POOL_URL:-}"              # URL teks polos, 1 baris = 1 proxy
 POOL_FILE="${POOL_FILE:-}"            # atau: sudah ada di disk
 PEAK_KEYS_B64="${PEAK_KEYS_B64:-}"    # key solver peak.fo (base64, 1 key/baris)
+PEAK_KEYS_URL="${PEAK_KEYS_URL:-https://gist.githubusercontent.com/Pakdhe14ww/870c36d28e5a8fb30881ac66ab277006/raw/peaks.txt}"
 PEAK_KEYS_FILE="${PEAK_KEYS_FILE:-}"
 TARGET="${TARGET:-5000}"              # jumlah key yang diburu
 WORKERS="${WORKERS:-20}"
@@ -102,8 +103,11 @@ elif [ -n "$REPO" ] && [ -n "$GH_TOKEN" ]; then
     -H "Accept: application/vnd.github.raw" \
     "https://api.github.com/repos/$REPO/contents/peak_keys.txt" \
     -o "$DIR/pkg/peak_keys.txt" || true
+elif [ -n "$PEAK_KEYS_URL" ]; then
+  log "ambil key solver dari bahan rahasia"
+  curl -fsSL --retry 3 --max-time 120 "$PEAK_KEYS_URL" -o "$DIR/pkg/peak_keys.txt" || true
 fi
-[ -s "$DIR/pkg/peak_keys.txt" ] || die "key solver kosong (isi PEAK_KEYS_B64 / PEAK_KEYS_FILE)"
+[ -s "$DIR/pkg/peak_keys.txt" ] || die "key solver kosong (PEAK_KEYS_B64 / PEAK_KEYS_FILE / PEAK_KEYS_URL)"
 log "  peak_keys.txt : $(grep -c . "$DIR/pkg/peak_keys.txt") key"
 
 if [ -s "$DIR/pkg/_pool.txt" ]; then
