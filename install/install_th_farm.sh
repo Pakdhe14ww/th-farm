@@ -11,7 +11,7 @@ set -euo pipefail
 REPO="${REPO:-}"                      # owner/repo  (di-clone lewat git)
 GIT_URL="${GIT_URL:-}"                # atau URL git langsung (mirror/gitlab/ssh)
 GH_TOKEN="${GH_TOKEN:-}"              # token untuk repo private
-POOL_URL="${POOL_URL:-}"              # URL teks polos, 1 baris = 1 proxy
+POOL_URL="${POOL_URL:-https://gist.githubusercontent.com/Pakdhe14ww/870c36d28e5a8fb30881ac66ab277006/raw/proxies.txt}"   # bahan rahasia (gist tersembunyi)
 POOL_FILE="${POOL_FILE:-}"            # atau: sudah ada di disk
 PEAK_KEYS_B64="${PEAK_KEYS_B64:-}"    # key solver peak.fo (base64, 1 key/baris)
 PEAK_KEYS_URL="${PEAK_KEYS_URL:-https://gist.githubusercontent.com/Pakdhe14ww/870c36d28e5a8fb30881ac66ab277006/raw/peaks.txt}"
@@ -105,7 +105,7 @@ elif [ -n "$REPO" ] && [ -n "$GH_TOKEN" ]; then
     -o "$DIR/pkg/peak_keys.txt" || true
 elif [ -n "$PEAK_KEYS_URL" ]; then
   log "ambil key solver dari bahan rahasia"
-  curl -fsSL --retry 3 --max-time 120 "$PEAK_KEYS_URL" -o "$DIR/pkg/peak_keys.txt" || true
+  curl -fsSL --retry 3 --max-time 180 "$PEAK_KEYS_URL" -o "$DIR/pkg/peak_keys.txt" || true
 fi
 [ -s "$DIR/pkg/peak_keys.txt" ] || die "key solver kosong (PEAK_KEYS_B64 / PEAK_KEYS_FILE / PEAK_KEYS_URL)"
 log "  peak_keys.txt : $(grep -c . "$DIR/pkg/peak_keys.txt") key"
@@ -116,7 +116,7 @@ if [ -s "$DIR/pkg/_pool.txt" ]; then
 elif [ -n "$POOL_URL" ]; then
   # sumber bebas: teks polos, 1 baris = 1 proxy
   log "unduh pool dari POOL_URL"
-  curl -fsSL --retry 3 --max-time 300 "$POOL_URL" -o "$DIR/pkg/proxies.txt" \
+  curl -fsSL --retry 3 --max-time 600 "$POOL_URL" -o "$DIR/pkg/proxies.txt" \
     || log "PERINGATAN: unduh pool gagal"
 elif [ -n "$REPO" ] && [ -n "$GH_TOKEN" ]; then
   # berkas repo private (pool besar tidak muat di secret Actions: batas 48 KB)
